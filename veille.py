@@ -41,7 +41,8 @@ GARDER_IDS = 6000                # articles mémorisés pour ne jamais renvoyer 
 FENETRE_SUJETS = timedelta(hours=24)
 GARDER_ARTICLES = timedelta(hours=36)
 SEUIL_SIMILARITE = 0.32          # à quel point deux articles doivent se ressembler pour former un sujet
-USER_AGENT = "Mozilla/5.0 (compatible; VeilleMedia/2.0)"
+USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
 MODELE_IA = "claude-haiku-5-5"
 NIVEAUX = {1: "⚪", 2: "🟠", 3: "🔴"}
 JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
@@ -129,7 +130,7 @@ def charger_config():
         for f in t.get("flux", []):
             if isinstance(f, str):
                 f = {"url": f}
-            f.setdefault("nom", re.sub(r"^https?://(www\.)?([^/]+).*", r"\2", f["url"]))
+            f.setdefault("nom", re.sub(r"^https?://(www\.)?([^/]+).*", r"\2", f.get("url") or f.get("google", "")))
             f.setdefault("poids", 1)
             f.setdefault("rubrique", "")
             flux.append(f)
@@ -159,15 +160,23 @@ def sauver_etat(theme, etat):
     etat["vus"] = etat["vus"][-GARDER_IDS:]
     ids = {a["id"] for a in etat["articles"]}
     etat["annonces"] = {k: v for k, v in etat["annonces"].items() if k in ids}
+    etat["decisions"] = {k: v for k, v in etat.get("decisions", {}).items() if k in ids}
     (DOSSIER_ETAT / f"{theme}.json").write_text(
         json.dumps(etat, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
 
 # ───────────────────────────── collecte ─────────────────────────────
 
+ENTETES = {
+    "User-Agent": USER_AGENT,
+    "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",
+    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+}
+
+
 def lire_flux(url):
     try:
-        r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=20)
+        r = requests.get(url, headers=ENTETES, timeout=20)
         r.raise_for_status()
         d = feedparser.parse(r.content)
         if not d.entries and d.bozo:
@@ -175,6 +184,48 @@ def lire_flux(url):
         return d.entries, None
     except Exception as ex:
         return [], str(ex)[:150]
+
+
+def requete_google(url):
+    """Déduit 'site:media.fr/rubrique' à partir de l'adresse d'un flux."""
+    m = re.match(r"https?://([^/?]+)(/[^?]*)?", url)
+    if not m:
+        return None
+    hote = re.sub(r"^(www|services|dwh|feeds|rss|syndication)\.", "", m.group(1))
+    segments = [s for s in (m.group(2) or "").split("/") if s]
+    rubrique = ""
+    if len(segments) > 1 and not re.search(r"rss|feed|xml|flux|api|arc", segments[0], re.I):
+        rubrique = "/" + segments[0]
+    return f"site:{hote}{rubrique}"
+
+
+def lire_google_actualites(requete):
+    """Relais de secours : les articles d'un média vus par Google Actualités (dernières 24 h)."""
+    url = ("https://news.google.com/rss/search?q=" + requests.utils.quote(f"{requete} when:1d")
+           + "&hl=fr&gl=FR&ceid=FR:fr")
+    entrees, err = lire_flux(url)
+    for en in entrees:  # Google ajoute " - Nom du média" à la fin des titres
+        src = (en.get("source") or {}).get("title")
+        if src and en.get("title", "").endswith(" - " + src):
+            en["title"] = en["title"][: -len(src) - 3]
+        en["summary"] = ""  # le résumé Google ne fait que répéter le titre
+    return entrees, err
+
+
+def lire_source(f):
+    """Lit le flux direct ; en cas d'échec (ou si 'google:' est indiqué), passe par Google Actualités."""
+    if f.get("google"):
+        e2, err2 = lire_google_actualites(f["google"])
+        return e2, err2, "google"
+    entrees, err = lire_flux(f["url"])
+    if not err:
+        return entrees, None, "direct"
+    req = requete_google(f["url"])
+    if req:
+        e2, err2 = lire_google_actualites(req)
+        if not err2 and e2:
+            return e2, None, f"relais Google ({req})"
+    return [], err, "panne"
 
 
 def date_publication(entree):
@@ -185,26 +236,40 @@ def date_publication(entree):
 def collecter(theme, conf, etat, tester=False):
     """Lit tous les flux du thème, ajoute les nouveaux articles à l'état, renvoie leurs IDs."""
     vus = set(etat["vus"])
+    # même titre chez le même média = même article (évite les doublons flux direct / relais Google)
+    titres_vus = {(a["source"], sans_accents(a["titre"].lower())) for a in etat["articles"]}
     nouveaux = []
     now = maintenant()
     for f in conf["flux"]:
-        entrees, err = lire_flux(f["url"])
+        cle = f.get("url") or f.get("google")
+        entrees, err, mode = lire_source(f)
         if tester:
-            print(f"  [{theme}] {'ERREUR ' + err if err else f'OK ({len(entrees)} articles)':<45} {f['nom']}  {f['url']}")
+            etat_txt = f"ERREUR {err}" if err else f"OK {len(entrees)} articles ({mode})"
+            print(f"  [{theme}] {etat_txt:<60} {f['nom']}")
             continue
         if err:
-            p = etat["pannes"].setdefault(f["url"], {"nom": f["nom"], "depuis": iso(now), "nb": 0})
+            p = etat["pannes"].setdefault(cle, {"nom": f["nom"], "depuis": iso(now), "nb": 0})
             p["nb"] += 1
             p["erreur"] = err
             print(f"  [{theme}] flux en panne : {f['nom']} ({err})")
             continue
-        etat["pannes"].pop(f["url"], None)
+        if mode.startswith("relais"):
+            print(f"  [{theme}] {f['nom']} : flux direct indisponible, {mode} OK")
+        etat["pannes"].pop(cle, None)
         for en in entrees:
             uid = en.get("id") or en.get("link") or en.get("title")
             if not uid or uid in vus:
                 continue
             vus.add(uid)
             etat["vus"].append(uid)
+            # Recherche Google Actualités : on crédite le vrai média qui a publié l'article
+            source = f["nom"]
+            if f.get("google"):
+                source = (en.get("source") or {}).get("title") or source
+            cle_titre = (source, sans_accents(nettoyer(en.get("title", ""), 250).lower()))
+            if cle_titre in titres_vus:
+                continue
+            titres_vus.add(cle_titre)
             pub = date_publication(en)
             if pub and now - pub > GARDER_ARTICLES:
                 continue  # vieux contenu remonté dans un flux : ignoré
@@ -213,7 +278,7 @@ def collecter(theme, conf, etat, tester=False):
                 "titre": nettoyer(en.get("title", "(sans titre)"), 250),
                 "resume": nettoyer(en.get("summary", ""), 400),
                 "lien": en.get("link", ""),
-                "source": f["nom"],
+                "source": source,
                 "poids": f["poids"],
                 "rubrique": f["rubrique"],
                 "date": iso(pub or now),
@@ -356,12 +421,14 @@ def telegram_long(token, chat_id, blocs):
         telegram(token, chat_id, message, apercu=False)
 
 
-def message_article(a, conf, niveau):
+def message_article(a, conf, niveau, raison=""):
     badge = f"{NIVEAUX[niveau]} " if niveau >= 2 else ""
     rub = f" · {e(a['rubrique'])}" if a.get("rubrique") else ""
     t = f"{conf['emoji']} {badge}<b>{e(a['titre'])}</b>\n"
     if a["resume"] and a["resume"].lower()[:60] not in a["titre"].lower():
         t += f"\n{e(nettoyer(a['resume'], 280))}\n"
+    if raison:
+        t += f"\n💡 <i>{e(raison)}</i>\n"
     heure = depuis_iso(a["date"]).astimezone(PARIS).strftime("%H:%M")
     t += f"\n<i>{e(a['source'])}{rub} · {heure}</i>"
     if a["lien"]:
@@ -380,6 +447,119 @@ def message_escalade(sujet, conf, niveau):
     return t
 
 
+# ───────────────────────────── tri éditorial par IA ─────────────────────────────
+
+def appel_ia(consigne, max_tokens):
+    r = requests.post("https://api.anthropic.com/v1/messages", timeout=120, headers={
+        "x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
+        "content-type": "application/json"},
+        json={"model": MODELE_IA, "max_tokens": max_tokens,
+              "messages": [{"role": "user", "content": consigne}]})
+    r.raise_for_status()
+    texte = "".join(b.get("text", "") for b in r.json()["content"])
+    return json.loads(texte[texte.find("{"): texte.rfind("}") + 1])
+
+
+def demander_tri(theme, conf, reg, lot):
+    """lot = [(sujet, niveau_media)]. Renvoie {index: {"g": bool, "p": 1-3, "r": str}} ou None si échec."""
+    lignes = []
+    for i, (s, niv) in enumerate(lot, 1):
+        rep = representant(s)
+        rub = f"[{rep['rubrique']}] " if rep.get("rubrique") else ""
+        autres = [a["titre"] for a in s if a is not rep][:2]
+        medias = ", ".join(sorted({a["source"] for a in s})[:5])
+        ligne = f"{i}. {rub}{rep['titre']} — {rep['resume'][:220]} ({nb_medias(s)} média(s) : {medias})"
+        if autres:
+            ligne += " | Autres titres : " + " / ".join(autres)
+        lignes.append(ligne)
+    consigne = (
+        f"Tu es le rédacteur en chef de ce média : {reg.get('presentation', '').strip()}\n\n"
+        f"Rubrique « {theme} ». Ligne éditoriale :\n{conf.get('ligne_editoriale', '').strip()}\n\n"
+        "Voici des sujets d'actualité qui viennent de sortir :\n\n" + "\n".join(lignes) + "\n\n"
+        "Pour chaque sujet, décide s'il faut prévenir le journaliste. Sois sélectif : garde seulement "
+        "ce qui correspond clairement à la ligne éditoriale. Ne laisse jamais passer à côté d'un "
+        "événement vraiment majeur, même s'il est à la limite de la ligne.\n"
+        "Priorité : 1 = info utile, 2 = important, 3 = incontournable (tout le monde va en parler).\n"
+        "Réponds uniquement en JSON, sans autre texte : "
+        "{\"1\": {\"g\": true, \"p\": 2, \"r\": \"pourquoi en 10 mots max\"}, \"2\": {\"g\": false}, ...}")
+    try:
+        data = appel_ia(consigne, 120 + 45 * len(lot))
+        res = {}
+        for k, v in data.items():
+            if isinstance(v, dict) and str(k).isdigit():
+                res[int(k)] = {"g": bool(v.get("g")), "p": min(3, max(1, int(v.get("p", 1) or 1))),
+                               "r": str(v.get("r", ""))[:120]}
+        return res
+    except Exception as ex:
+        print(f"  [{theme}] tri IA indisponible pour l'instant : {ex}")
+        return None
+
+
+def tri_actif(reg, conf):
+    return bool(conf.get("tri_ia", reg.get("tri_ia", True))) and bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def juger(theme, conf, reg, etat, sujets, inclure_init=False):
+    """
+    Renvoie une liste de (sujet, garder, niveau_final, score, raison).
+    garder = None si la décision n'a pas pu être prise (IA indisponible) : on réessaiera.
+    """
+    resultats = []
+    a_juger = []  # (position dans resultats, sujet, niveau)
+    decisions = etat.setdefault("decisions", {})
+    actif = tri_actif(reg, conf)
+
+    for s in sujets:
+        niveau, score = evaluer(s, reg)
+        if not actif:
+            resultats.append([s, True, niveau, score, ""])
+            continue
+        ds = [decisions.get(a["id"]) for a in s]
+        connues = [d for d in ds if d and d.get("g") is not None]
+        gardees = [d for d in connues if d["g"]]
+        manquantes = any(d is None for d in ds)
+        if gardees:
+            meilleure = max(gardees, key=lambda d: d.get("p", 1))
+            resultats.append([s, True, max(niveau, meilleure.get("p", 1)), score, meilleure.get("r", "")])
+            for a in s:
+                decisions.setdefault(a["id"], meilleure)
+        elif connues:
+            # rejeté : on redemande seulement si le sujet a pris de l'ampleur depuis
+            if niveau > max(d.get("n", 1) for d in connues):
+                resultats.append([s, None, niveau, score, ""])
+                a_juger.append((len(resultats) - 1, s, niveau))
+            else:
+                resultats.append([s, False, niveau, score, ""])
+                for a in s:
+                    decisions.setdefault(a["id"], connues[0])
+        elif manquantes or inclure_init:
+            resultats.append([s, None, niveau, score, ""])
+            a_juger.append((len(resultats) - 1, s, niveau))
+        else:
+            resultats.append([s, False, niveau, score, ""])  # sujet du premier lancement, sans activité
+
+    for debut in range(0, len(a_juger), 40):
+        lot = a_juger[debut:debut + 40]
+        reponse = demander_tri(theme, conf, reg, [(s, niv) for _, s, niv in lot])
+        if reponse is None:
+            continue  # pas de décision enregistrée : on réessaiera au prochain passage
+        for i, (pos, s, niv) in enumerate(lot, 1):
+            v = reponse.get(i, {"g": False, "p": 1, "r": ""})
+            d = {"g": v["g"], "p": v["p"], "r": v["r"], "n": niv}
+            for a in s:
+                decisions[a["id"]] = d
+            resultats[pos][1] = v["g"]
+            if v["g"]:
+                resultats[pos][2] = max(niv, v["p"])
+                resultats[pos][4] = v["r"]
+            else:
+                resultats[pos][1] = False
+    if a_juger:
+        print(f"  [{theme}] tri IA : {len(a_juger)} sujet(s) évalué(s), "
+              f"{sum(1 for r in resultats if r[1] is True and any(r[0] is s for _, s, _ in a_juger))} retenu(s)")
+    return [tuple(r) for r in resultats]
+
+
 # ───────────────────────────── alertes en direct ─────────────────────────────
 
 def alertes(theme, conf, reg, etat, nouveaux, token, chat_id, premier):
@@ -390,51 +570,58 @@ def alertes(theme, conf, reg, etat, nouveaux, token, chat_id, premier):
     mode = conf["alertes"]
     envois = []  # (texte, apercu)
 
-    for sujet in sujets:
-        niveau, _ = evaluer(sujet, reg)
+    if premier:
+        for s in sujets:
+            niveau, _ = evaluer(s, reg)
+            for a in s:
+                etat["annonces"][a["id"]] = niveau
+                etat.setdefault("decisions", {})[a["id"]] = {"g": None}
+        print(f"[{theme}] initialisé : {len(recents)} articles mémorisés, rien envoyé.")
+        if token:
+            tri = "activé 🧠" if tri_actif(reg, conf) else "désactivé (pas de clé ANTHROPIC_API_KEY)"
+            telegram(token, chat_id,
+                     f"{conf['emoji']} <b>Bot {theme} activé</b>\nSources suivies : {len({f['nom'] for f in conf['flux']})}.\n"
+                     f"Tri éditorial par IA : {tri}.\nRésumé quotidien à {reg.get('heure_resume', 20)}h.")
+        return
+
+    ecartes = 0
+    for sujet, garder, niveau, score, raison in juger(theme, conf, reg, etat, sujets):
+        if not garder:
+            ecartes += garder is False and any(a["id"] in nouveaux for a in sujet)
+            continue
         ids = [a["id"] for a in sujet]
         deja = max((etat["annonces"].get(i, 0) for i in ids), default=0)
         neufs = [a for a in sujet if a["id"] in nouveaux]
         annonce = deja
-
-        if premier:
-            annonce = niveau  # premier lancement : on mémorise sans rien envoyer
-        elif neufs:
-            if mode == "toutes":
-                for a in neufs:
-                    envois.append((message_article(a, conf, niveau), True))
+        if mode == "toutes":
+            for a in neufs:
+                envois.append((message_article(a, conf, niveau, raison), True))
+            if neufs:
                 annonce = max(deja, 1)
-                if niveau == 3 and deja < 3:
-                    envois.append((message_escalade(sujet, conf, 3), False))
-                    annonce = 3
-            elif mode == "sujets":
-                if deja == 0:
-                    envois.append((message_article(representant(neufs), conf, niveau), True))
-                    annonce = max(1, niveau)
-                elif niveau == 3 and deja < 3:
-                    envois.append((message_escalade(sujet, conf, 3), False))
-                    annonce = 3
-            elif mode == "importantes":
-                if niveau >= 2 and niveau > deja:
-                    envois.append((message_escalade(sujet, conf, niveau), False))
-                    annonce = niveau
+            if niveau == 3 and deja < 3:
+                envois.append((message_escalade(sujet, conf, 3), False))
+                annonce = 3
+        elif mode == "sujets":
+            if deja == 0:
+                envois.append((message_article(representant(neufs or sujet), conf, niveau, raison), True))
+                annonce = max(1, niveau)
+            elif niveau == 3 and deja < 3:
+                envois.append((message_escalade(sujet, conf, 3), False))
+                annonce = 3
+        elif mode == "importantes":
+            if niveau >= 2 and niveau > deja:
+                envois.append((message_escalade(sujet, conf, niveau), False))
+                annonce = niveau
         for i in ids:
             etat["annonces"][i] = annonce
-
-    if premier:
-        print(f"[{theme}] initialisé : {len(recents)} articles mémorisés, rien envoyé.")
-        if token:
-            telegram(token, chat_id,
-                     f"{conf['emoji']} <b>Bot {theme} activé</b>\nSources suivies : {len({f['nom'] for f in conf['flux']})} médias.\n"
-                     f"Mode d'alerte : <i>{mode}</i>. Résumé quotidien à {reg.get('heure_resume', 20)}h.")
-        return
 
     if len(envois) > MAX_ENVOIS_PAR_PASSAGE:
         print(f"[{theme}] {len(envois)} alertes, limitées à {MAX_ENVOIS_PAR_PASSAGE}")
         envois = envois[-MAX_ENVOIS_PAR_PASSAGE:]
     for texte, apercu in envois:
         telegram(token, chat_id, texte, apercu)
-    print(f"[{theme}] {len(nouveaux)} nouveaux articles, {len(envois)} alertes envoyées.")
+    print(f"[{theme}] {len(nouveaux)} nouveaux articles, {len(envois)} alertes envoyées"
+          + (f", {ecartes} sujet(s) écarté(s) par le tri." if ecartes else "."))
 
 
 # ───────────────────────────── résumé quotidien ─────────────────────────────
@@ -477,9 +664,11 @@ def resume_quotidien(theme, conf, reg, etat, token, chat_id):
 
     sujets = regrouper(articles)
     notes = []
-    for s in sujets:
-        niveau, score = evaluer(s, reg)
-        notes.append((niveau, score, len(s), s))
+    raisons = {}
+    for s, garder, niveau, score, raison in juger(theme, conf, reg, etat, sujets, inclure_init=True):
+        if garder:
+            notes.append((niveau, score, len(s), s))
+            raisons[id(s)] = raison
     notes.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
 
     n_une = reg.get("sujets_dans_resume", 10)
@@ -490,7 +679,7 @@ def resume_quotidien(theme, conf, reg, etat, token, chat_id):
 
     medias = len({a["source"] for a in articles})
     blocs = [f"{conf['emoji']} <b>RÉSUMÉ DU JOUR · {theme.upper()}</b>\n"
-             f"<i>{date_fr(now)} · {len(articles)} articles · {medias} médias · {len(sujets)} sujets</i>\n\n"]
+             f"<i>{date_fr(now)} · {len(notes)} sujets retenus sur {len(sujets)} · {medias} médias lus</i>\n\n"]
     if intro:
         blocs.append(f"{e(intro)}\n\n")
     if not une:
@@ -505,6 +694,8 @@ def resume_quotidien(theme, conf, reg, etat, token, chat_id):
         bloc = f"{i}. {NIVEAUX[niveau]} <b>{e(rep['titre'])}</b>{rub}\n"
         if texte:
             bloc += f"{e(texte)}\n"
+        if raisons.get(id(s)):
+            bloc += f"💡 <i>{e(raisons[id(s)])}</i>\n"
         bloc += f"📎 {nb_medias(s)} média(s) : {liens_sources(s)}\n\n"
         blocs.append(bloc)
     if breves:
@@ -544,6 +735,9 @@ def traiter(theme, conf, reg, chat_id, forcer_resume=False):
     etat, premier = charger_etat(theme)
     if not etat["articles"] and etat["vus"]:
         premier = True  # migration depuis l'ancienne version : on remet à niveau sans envoyer
+    if "decisions" not in etat:
+        # mise à jour depuis la version sans tri : les articles déjà connus ne sont pas réévalués
+        etat["decisions"] = {a["id"]: {"g": None} for a in etat["articles"]}
     nouveaux = collecter(theme, conf, etat)
     alertes(theme, conf, reg, etat, nouveaux, token, chat_id, premier)
     if forcer_resume or (not premier and heure_du_resume(reg, etat)):
