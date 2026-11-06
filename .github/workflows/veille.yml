@@ -30,6 +30,7 @@ jobs:
           TOKEN_ECONOMIE: ${{ secrets.TOKEN_ECONOMIE }}
           TOKEN_SPORT: ${{ secrets.TOKEN_SPORT }}
           TOKEN_ART: ${{ secrets.TOKEN_ART }}
+          TOKEN_FINANCE: ${{ secrets.TOKEN_FINANCE }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TZ: Europe/Paris
         run: python veille.py
