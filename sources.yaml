@@ -4,7 +4,7 @@
 reglages:
   # Heures (Paris) des résumés. Chacun couvre ce qui s'est passé depuis le précédent
   # (celui de 10h couvre la nuit depuis le résumé de la veille au soir).
-  heures_resume: ["10:00", "14:00", "18:30"]
+  heures_resume: ["10:00", "14:00", "18:30", "19:40"]
   sujets_dans_resume: 5       # nombre maximum d'infos par résumé (modifiable par thème)
 
   # Recherches Google Actualités : on ne garde que les articles de ces médias reconnus
