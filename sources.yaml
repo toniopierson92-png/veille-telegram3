@@ -1,0 +1,291 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  RÉGLAGES GÉNÉRAUX
+# ─────────────────────────────────────────────────────────────────────────────
+reglages:
+  # Heures (Paris) des résumés. Chacun couvre ce qui s'est passé depuis le précédent
+  # (celui de 10h couvre la nuit depuis le résumé de la veille au soir).
+  heures_resume: ["10:00", "14:00", "18:30"]
+  sujets_dans_resume: 5       # nombre maximum d'infos par résumé (modifiable par thème)
+
+  # Recherches Google Actualités : on ne garde que les articles de ces médias reconnus
+  # (évite les sites obscurs). Ajoute un nom ici si un média sérieux manque.
+  medias_reconnus: [Le Monde, franceinfo, France Info, Le Figaro, Libération, Le Parisien,
+                    Les Echos, Les Échos, La Tribune, BFM, RMC, TF1, LCI, France 24, RFI,
+                    20 Minutes, Ouest-France, Le Point, L'Express, L'Obs, Challenges, Capital,
+                    Boursorama, Zonebourse, Investir, Boursier, ABC Bourse, Journal du Net,
+                    L'Usine Nouvelle, Le Journal du Dimanche, Huffington, Mediapart, Marianne,
+                    L'Opinion, Public Sénat, Euronews, Reuters, AFP, Bloomberg, Financial Times,
+                    CNBC, Wall Street Journal, The Guardian, BBC, New York Times, Associated Press,
+                    L'Équipe, L'Equipe, Eurosport, So Foot, Foot Mercato, Maxifoot, Get French Football,
+                    Basket USA, BeBasket, Motorsport, Auto Hebdo, Nextgen-Auto, F1i, Tennis Actu,
+                    We Love Tennis, Tennis Majors, AlloCiné, Première, Écran Large, Ecran Large,
+                    Variety, Hollywood Reporter, Deadline, Booska-P, Raplume, Mouv, Rapunchline,
+                    Generations, Hypebeast, Highsnobiety, Vogue, Elle, GQ, FashionNetwork,
+                    Fashion Network, WWD, Konbini, Les Inrocks, Numerama, Têtu, Madame Figaro]
+
+  # Hiérarchie : nombre de médias DIFFÉRENTS qui couvrent un sujet
+  seuil_important: 3          # 🟠 à partir de 3 médias
+  seuil_majeur: 5             # 🔴 à partir de 5 médias
+
+  mots_importants: [urgent, alerte, exclusif, officiel, démission, démissionne, mort, décès,
+                    attentat, séisme, guerre, élection, dissolution, "49.3", motion de censure,
+                    record, faillite, licenciements, krach, finale, sacré, champion du monde]
+
+  # Messages pendant la journée (en plus des résumés) :
+  #   aucune      -> rien, seulement le résumé
+  #   majeures    -> seulement les très grosses infos, celles que tout le monde va reprendre (réglage actuel)
+  #   importantes -> chaque fois qu'un sujet est repris par beaucoup de médias
+  #   sujets      -> chaque nouveau sujet retenu (beaucoup de messages)
+  alertes: majeures
+  alertes_max_par_jour: 3     # sécurité : nombre maximum d'alertes par thème et par jour
+
+  # TRI PAR IA (nécessite le secret ANTHROPIC_API_KEY, environ 1 à 3 € par mois)
+  # L'IA lit chaque nouveau sujet et ne garde que ceux qui collent à la "ligne_editoriale"
+  # du thème. Sans clé, le bot envoie tout, comme avant.
+  tri_ia: true
+
+  # Ce que l'IA sait de ton média (sert pour tous les thèmes)
+  presentation: >
+    Média d'actualité pour TikTok et Instagram, public jeune français (18-30 ans).
+    On veut les infos dont tout le monde va parler, celles qui font réagir, et les grosses
+    actus qui ont un vrai impact. On évite le contenu de niche, les tribunes d'opinion,
+    les articles pratiques ou de conso, les publireportages et les jeux concours.
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  THÈMES
+#  ligne_editoriale : écris-la comme tu l'expliquerais à un journaliste.
+#  Tu peux la modifier librement pour affiner ce que tu reçois.
+# ─────────────────────────────────────────────────────────────────────────────
+themes:
+
+  politique:
+    emoji: "🏛️"
+    token_env: TOKEN_POLITIQUE
+    ligne_editoriale: >
+      À GARDER : la politique française. Gouvernement, Président, Assemblée et Sénat (votes,
+      lois adoptées, budget, 49.3, motions de censure), annonces et mesures qui changent la vie
+      des Français, remaniements et démissions, sondages majeurs, élections, grandes manifestations
+      et grèves, affaires judiciaires de personnalités politiques, déclarations chocs des leaders.
+      INTERNATIONAL : seulement les événements qui peuvent influencer le monde ou la France :
+      élections dans les grands pays (États-Unis, Allemagne, Royaume-Uni…), décisions majeures
+      de l'Union européenne, guerres et escalades importantes, accords ou sanctions internationales,
+      chute d'un gouvernement d'une grande puissance.
+      À ÉCARTER : politique locale secondaire, petites phrases sans suite, portraits, tribunes,
+      analyses de fond sans fait nouveau, actualité étrangère sans portée mondiale.
+    flux:
+      - {nom: Le Monde, url: "https://www.lemonde.fr/politique/rss_full.xml"}
+      - {nom: franceinfo, url: "https://www.francetvinfo.fr/politique.rss"}
+      - {nom: 20 Minutes, url: "https://www.20minutes.fr/feeds/rss-politique.xml"}
+      - {nom: BFMTV, url: "https://www.bfmtv.com/rss/politique/"}
+      - {nom: Le Parisien, url: "https://feeds.leparisien.fr/leparisien/rss/politique"}
+      - {nom: Libération, url: "https://www.liberation.fr/arc/outboundfeeds/rss-all/category/politique/?outputType=xml"}
+      - {nom: Mediapart, url: "https://www.mediapart.fr/articles/feed"}
+      - {nom: L'Humanité, url: "https://www.humanite.fr/feed"}
+      - {nom: Marianne, url: "https://www.marianne.net/rss.xml"}
+      - {nom: Le Figaro, url: "https://www.lefigaro.fr/rss/figaro_politique.xml"}
+      - {nom: Le Point, url: "https://www.lepoint.fr/politique/rss.xml"}
+      - {nom: L'Opinion, url: "https://www.lopinion.fr/feed"}
+      - {nom: Valeurs actuelles, url: "https://www.valeursactuelles.com/feed"}
+      - {nom: Public Sénat, url: "https://www.publicsenat.fr/rss.xml"}
+      # International (l'IA ne garde que les grosses actus)
+      - {nom: Le Monde, url: "https://www.lemonde.fr/international/rss_full.xml", rubrique: International}
+      - {nom: France 24, url: "https://www.france24.com/fr/rss", rubrique: International}
+      - {nom: RFI, url: "https://www.rfi.fr/fr/rss", rubrique: International}
+      - {nom: Courrier international, url: "https://www.courrierinternational.com/feed/all/rss.xml", rubrique: International}
+      - {nom: Euronews, url: "https://fr.euronews.com/rss?level=theme&name=news", rubrique: International}
+
+  economie:
+    emoji: "📈"
+    token_env: TOKEN_ECONOMIE
+    ligne_editoriale: >
+      À GARDER : ce qui influence l'économie française et le portefeuille des Français.
+      Inflation, prix (carburant, énergie, alimentation, loyers), salaires et SMIC, impôts et taxes,
+      budget de l'État et dette, retraites, chômage, taux d'intérêt et crédit immobilier,
+      grandes entreprises françaises (résultats records, plans sociaux, fermetures d'usines,
+      rachats, faillites), grèves qui bloquent le pays, décisions de la Banque centrale européenne.
+      INTERNATIONAL : seulement les crises et décisions majeures : krach ou forte chute des
+      marchés, décisions de la Fed, guerre commerciale et droits de douane, crise de l'énergie
+      ou du pétrole, faillite d'un géant, annonces des grandes entreprises tech mondiales qui
+      font l'actualité.
+      À ÉCARTER : conseils de placement, articles conso ou pratiques, petites entreprises,
+      nominations de dirigeants, analyses de marché quotidiennes, communiqués sans enjeu.
+    flux:
+      - {nom: Les Échos, url: "https://services.lesechos.fr/rss/les-echos-economie.xml"}
+      - {nom: La Tribune, url: "https://www.latribune.fr/rss/rubriques/economie.html"}
+      - {nom: BFM Business, url: "https://www.bfmtv.com/rss/economie/"}
+      - {nom: Challenges, url: "https://www.challenges.fr/rss.xml"}
+      - {nom: Capital, url: "https://www.capital.fr/rss"}
+      - {nom: L'Usine Nouvelle, url: "https://www.usinenouvelle.com/rss/", rubrique: Industrie}
+      - {nom: Alternatives Économiques, url: "https://www.alternatives-economiques.fr/rss.xml"}
+      - {nom: Libération, url: "https://www.liberation.fr/arc/outboundfeeds/rss-all/category/economie/?outputType=xml"}
+      - {nom: Le Monde, url: "https://www.lemonde.fr/economie/rss_full.xml"}
+      - {nom: Le Figaro, url: "https://www.lefigaro.fr/rss/figaro_economie.xml"}
+      - {nom: Le Point, url: "https://www.lepoint.fr/economie/rss.xml"}
+      - {nom: franceinfo, url: "https://www.francetvinfo.fr/economie.rss"}
+      - {nom: 20 Minutes, url: "https://www.20minutes.fr/feeds/rss-economie.xml"}
+      # International (l'IA ne garde que les crises et décisions majeures)
+      - {nom: France 24, url: "https://www.france24.com/fr/%C3%A9co-tech/rss", rubrique: International}
+      - {nom: Financial Times, url: "https://www.ft.com/rss/home", rubrique: International}
+      - {nom: BBC, url: "https://feeds.bbci.co.uk/news/business/rss.xml", rubrique: International}
+      - {nom: CNBC, url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", rubrique: International}
+
+  sport:
+    emoji: "⚽"
+    token_env: TOKEN_SPORT
+    ligne_editoriale: >
+      PRIORITÉ N°1 : les grands clubs français et les sportifs français.
+      FOOTBALL : d'abord le PSG, l'OM, l'OL, Monaco, Lille, Lens, Nice, Rennes et l'équipe de
+      France (résultats avec le score et les buteurs, transferts officiels, blessures,
+      limogeages, déclarations fortes), puis les joueurs français qui jouent à l'étranger
+      (Mbappé, Dembélé, Griezmann, Tchouaméni, Saliba…), puis la Ligue des champions
+      et les très grosses affiches européennes (Real, Barça, City, Liverpool, Bayern…).
+      BASKET : Wembanyama et les Français en NBA, l'équipe de France, et seulement les très
+      gros événements NBA (titre, record historique, transfert majeur).
+      TENNIS : les joueurs et joueuses français avant tout, plus le top 5 mondial en Grand
+      Chelem et Masters 1000.
+      FORMULE 1 : seulement les grosses infos : vainqueur d'un Grand Prix, titre de champion,
+      transfert majeur, Français sur le podium ou au cœur de l'actualité (Gasly, Ocon, Hadjar).
+      AUTRES SPORTS : seulement un exploit historique d'un sportif français (titre mondial,
+      record, médaille olympique) ou une très grosse actu nationale.
+      À ÉCARTER : divisions inférieures, rumeurs de transfert fragiles, avant-matchs sans info,
+      compositions probables, paris sportifs, petits championnats étrangers.
+    consigne_selection: >
+      Commence par les clubs et sportifs français. Au maximum UNE info de Formule 1 par résumé,
+      et aucune si ce n'est pas une grosse info. Varie les sports seulement si l'info le mérite.
+    consigne_resume: >
+      Pour un match : le score, les buteurs ou les joueurs décisifs, le moment clé, puis la
+      conséquence (classement, qualification, prochain match important). Pour un transfert :
+      le montant et la durée du contrat si connus.
+    flux:
+      - {nom: L'Équipe, url: "https://dwh.lequipe.fr/api/edito/rss?path=/", poids: 1.5}
+      - {nom: RMC Sport, url: "https://rmcsport.bfmtv.com/rss/fil-sport/"}
+      - {nom: franceinfo, url: "https://www.francetvinfo.fr/sports.rss"}
+      - {nom: Le Parisien, url: "https://feeds.leparisien.fr/leparisien/rss/sports"}
+      - {nom: 20 Minutes, url: "https://www.20minutes.fr/feeds/rss-sport.xml"}
+      - {nom: Le Figaro, url: "https://www.lefigaro.fr/rss/figaro_sport.xml"}
+      # Football (clubs français en priorité)
+      - {nom: So Foot, url: "https://www.sofoot.com/rss.xml", rubrique: Football}
+      - {nom: Foot Mercato, url: "https://www.footmercato.net/flux-rss", rubrique: Football}
+      - {nom: Google Actu PSG OM, google: "PSG OR OM OR \"Olympique lyonnais\" OR Monaco OR LOSC match OR transfert", rubrique: Football}
+      - {nom: Google Actu Bleus, google: "\"équipe de France\" football OR Mbappé OR Dembélé", rubrique: Football}
+      # Basket
+      - {nom: Basket USA, url: "https://www.basketusa.com/feed/", rubrique: NBA}
+      - {nom: Google Actu Wembanyama, google: "Wembanyama OR \"Français en NBA\" OR \"équipe de France de basket\"", rubrique: Basket}
+      # Tennis
+      - {nom: Google Actu Tennis, google: "tennis français OR Fils OR Humbert OR Mpetshi OR Garcia OR Grand Chelem", rubrique: Tennis}
+      # Formule 1 (une seule source : seules les grosses infos sont gardées)
+      - {nom: Motorsport.com, url: "https://fr.motorsport.com/rss/f1/news/", rubrique: F1}
+
+  art:
+    emoji: "🎬"
+    token_env: TOKEN_ART
+    ligne_editoriale: >
+      À GARDER uniquement :
+      CINÉMA ET SÉRIES : sorties de films en salle (surtout les gros films et les films
+      attendus), bandes-annonces de films très attendus, box-office, sorties de séries
+      importantes sur les plateformes, grandes récompenses (César, Oscars, Cannes).
+      RAP : tout ce qui concerne les sorties rap, en France en priorité et les grosses
+      sorties américaines : nouveaux sons, albums, clips, featurings, annonces d'album ou de
+      tournée, certifications et records de streams, clashs et actus marquantes de rappeurs.
+      STREETWEAR : sorties de nouvelles collections et collaborations (Supreme, Nike, Jordan,
+      Adidas, Corteiz, Stüssy, Palace, marques de luxe en collab streetwear…), drops de
+      sneakers très attendus.
+      MODE : défilés des Fashion Weeks (Paris, Milan, Londres, New York), homme et femme,
+      nominations de directeurs artistiques des grandes maisons, collaborations marquantes.
+      À ÉCARTER : théâtre, opéra, musique classique, jazz, littérature, expositions et musées,
+      critiques de films anciens, nécrologies de personnalités peu connues du grand public,
+      variété et pop sans lien avec le rap, beauté et cosmétique, articles shopping.
+    flux:
+      # Cinéma & séries
+      - {nom: AlloCiné, url: "https://www.allocine.fr/rss/news.xml", rubrique: Cinéma}
+      - {nom: Première, url: "https://www.premiere.fr/rss/actu-live", rubrique: Cinéma}
+      - {nom: Écran Large, url: "https://www.ecranlarge.com/rss", rubrique: Cinéma}
+      - {nom: Le Monde, url: "https://www.lemonde.fr/cinema/rss_full.xml", rubrique: Cinéma}
+      - {nom: franceinfo, url: "https://www.francetvinfo.fr/culture.rss"}
+      - {nom: Variety, url: "https://variety.com/feed/", rubrique: Cinéma}
+      # Rap
+      - {nom: Booska-P, url: "https://www.booska-p.com/feed/", rubrique: Rap}
+      - {nom: Raplume, url: "https://raplume.eu/feed/", rubrique: Rap}
+      - {nom: Les Inrocks, url: "https://www.lesinrocks.com/feed/"}
+      - {nom: Konbini, url: "https://www.konbini.com/fr/feed/"}
+      - {nom: Google Actu Rap, google: "rappeur album OR clip OR son OR featuring", rubrique: Rap}
+      - {nom: Billboard, url: "https://www.billboard.com/c/music/rb-hip-hop/feed/", rubrique: Rap US}
+      # Streetwear
+      - {nom: Hypebeast, url: "https://hypebeast.com/fr/feed", rubrique: Streetwear}
+      - {nom: Highsnobiety, url: "https://www.highsnobiety.com/feed/", rubrique: Streetwear}
+      - {nom: Google Actu Streetwear, google: "streetwear collection OR collaboration OR drop", rubrique: Streetwear}
+      # Mode / Fashion Week
+      - {nom: Vogue France, url: "https://www.vogue.fr/feed/rss", rubrique: Mode}
+      - {nom: FashionNetwork, url: "https://fr.fashionnetwork.com/rss/feed/fashionnetwork_fr.xml", rubrique: Mode}
+      - {nom: Le Monde, url: "https://www.lemonde.fr/m-mode/rss_full.xml", rubrique: Mode}
+      - {nom: WWD, url: "https://wwd.com/feed/", rubrique: Mode}
+      - {nom: Google Actu Fashion Week, google: "fashion week défilé", rubrique: Mode}
+
+  finance:
+    emoji: "💹"
+    token_env: TOKEN_FINANCE
+    sujets_dans_resume: 6
+    # Le résumé croise les marchés avec les sujets politique et économie du jour
+    contexte_de: [politique, economie]
+    # Bloc "Les chiffres" en tête de chaque résumé (cours en direct)
+    chiffres_marches:
+      - {nom: CAC 40, symbole: "^FCHI", decimales: 0, unite: " pts"}
+      - {nom: Euro Stoxx 50, symbole: "^STOXX50E", decimales: 0, unite: " pts"}
+      - {nom: S&P 500, symbole: "^GSPC", decimales: 0, unite: " pts"}
+      - {nom: Nasdaq, symbole: "^IXIC", decimales: 0, unite: " pts"}
+      - {nom: Euro/dollar, symbole: "EURUSD=X", decimales: 4, unite: " $"}
+      - {nom: Pétrole Brent, symbole: "BZ=F", decimales: 2, unite: " $"}
+      - {nom: Or, symbole: "GC=F", decimales: 0, unite: " $/once"}
+      - {nom: Bitcoin, symbole: "BTC-EUR", decimales: 0, unite: " €"}
+    ligne_editoriale: >
+      Les marchés et l'argent des entreprises, expliqués simplement.
+      À GARDER :
+      1. RÉSULTATS D'ENTREPRISES : publications de résultats annuels, semestriels ou
+      trimestriels des grandes entreprises (CAC 40 : LVMH, TotalEnergies, Airbus, BNP Paribas,
+      L'Oréal, Hermès, Sanofi, Renault, Stellantis… ; États-Unis : Nvidia, Apple, Microsoft,
+      Amazon, Alphabet, Meta, Tesla…) : chiffre d'affaires, bénéfice, prévisions, et la
+      réaction de l'action en Bourse. Aussi : rachats et fusions majeurs, introductions en
+      Bourse, avertissements sur résultats, plans de licenciements de grands groupes.
+      2. LES MARCHÉS : la séance de la Bourse de Paris et de Wall Street (clôture, plus fortes
+      hausses et baisses, records), le pétrole, l'or, l'euro/dollar, le bitcoin (gros mouvements).
+      3. LES CHIFFRES CLÉS DE L'ÉCONOMIE qui font bouger les marchés : inflation (France,
+      zone euro, États-Unis), emploi américain, croissance (PIB), décisions et discours de la
+      BCE et de la Fed, taux d'emprunt de la France, notes des agences de notation.
+      4. LE LIEN AVEC LA POLITIQUE : droits de douane, budget et dette de la France, élections,
+      crise gouvernementale, sanctions, guerres, quand ils font réagir les marchés.
+      À ÉCARTER : conseils d'investissement et « faut-il acheter », analyses techniques et
+      graphiques, petites capitalisations, cryptomonnaies secondaires, produits d'épargne,
+      publireportages, brèves de quelques lignes sans chiffre.
+    consigne_selection: >
+      Un bon résumé finance contient en général : 1 ou 2 publications de résultats d'entreprises
+      connues, le bilan de la séance (Paris et/ou Wall Street), et 1 ou 2 infos macro ou
+      politiques qui expliquent les mouvements. Évite les sujets déjà couverts par l'économie
+      sauf s'il y a un vrai angle marché.
+    consigne_resume: >
+      Écris pour quelqu'un qui débute en finance : phrases simples, chaque terme technique
+      expliqué en quelques mots (ex. « taux directeur » = taux auquel les banques empruntent
+      à la banque centrale). Donne TOUJOURS les chiffres clés : pour des résultats, le chiffre
+      d'affaires, le bénéfice, l'évolution sur un an et la réaction de l'action ; pour une
+      séance, l'indice et sa variation en %. Explique POURQUOI ça bouge, et si une décision
+      politique ou un événement du jour en est la cause, dis-le clairement.
+    flux:
+      # Bourse et entreprises (les sites qui bloquent passent par Google Actualités)
+      - {nom: Les Échos, google: "site:lesechos.fr/finance-marches", rubrique: Marchés}
+      - {nom: Les Échos, google: "site:lesechos.fr/industrie-services OR site:lesechos.fr/tech-medias résultats", rubrique: Entreprises}
+      - {nom: Boursorama, url: "https://www.boursorama.com/rss/actualites/"}
+      - {nom: Zonebourse, url: "https://www.zonebourse.com/rss/"}
+      - {nom: Investir, url: "https://investir.lesechos.fr/rss/"}
+      - {nom: BFM Bourse, google: "site:bfmtv.com/economie/bourse OR site:tradingsat.com"}
+      - {nom: Capital, google: "site:capital.fr/entreprises-marches"}
+      # Recherches ciblées (seuls les médias reconnus sont gardés)
+      - {nom: Google Actu Résultats CAC 40, google: "résultats annuels OR trimestriels OR semestriels \"chiffre d'affaires\" bénéfice CAC 40", rubrique: Résultats}
+      - {nom: Google Actu Résultats US, google: "résultats trimestriels Nvidia OR Apple OR Microsoft OR Amazon OR Alphabet OR Meta OR Tesla", rubrique: Résultats}
+      - {nom: Google Actu Clôture Paris, google: "Bourse de Paris clôture CAC 40", rubrique: Bourse de Paris}
+      - {nom: Google Actu Wall Street, google: "Wall Street clôture Dow Jones Nasdaq", rubrique: Wall Street}
+      - {nom: Google Actu Macro, google: "inflation OR \"taux directeurs\" OR BCE OR Fed OR \"emploi américain\" OR PIB", rubrique: Macro}
+      - {nom: Google Actu Dette France, google: "dette France OR \"taux d'emprunt\" OR \"agence de notation\" OR \"OAT\"", rubrique: Macro}
+      - {nom: Google Actu Matières premières, google: "\"prix du pétrole\" OR \"cours de l'or\"", rubrique: Matières premières}
+      - {nom: Google Actu Bitcoin, google: "bitcoin record OR chute OR flambée", rubrique: Crypto}
+      # International
+      - {nom: CNBC, url: "https://www.cnbc.com/id/10000664/device/rss/rss.html", rubrique: International}
+      - {nom: MarketWatch, url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", rubrique: International}
