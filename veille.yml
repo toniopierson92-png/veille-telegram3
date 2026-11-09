@@ -1,0 +1,55 @@
+name: Veille actu Telegram
+
+# GitHub ne lance pas vraiment les tâches planifiées toutes les 5 minutes (plutôt une fois
+# par heure). Chaque lancement fait donc tourner le bot pendant ~55 minutes, avec un passage
+# toutes les 5 minutes. Le lancement suivant prend le relais.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: veille
+  cancel-in-progress: false
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Veille (un passage toutes les 5 minutes pendant ~55 minutes)
+        env:
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+          TOKEN_POLITIQUE: ${{ secrets.TOKEN_POLITIQUE }}
+          TOKEN_ECONOMIE: ${{ secrets.TOKEN_ECONOMIE }}
+          TOKEN_SPORT: ${{ secrets.TOKEN_SPORT }}
+          TOKEN_ART: ${{ secrets.TOKEN_ART }}
+          TOKEN_FINANCE: ${{ secrets.TOKEN_FINANCE }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TZ: Europe/Paris
+        run: |
+          git config user.name "veille-bot"
+          git config user.email "veille-bot@users.noreply.github.com"
+          fin=$(( $(date +%s) + 55*60 ))
+          while [ "$(date +%s)" -lt "$fin" ]; do
+            debut=$(date +%s)
+            python veille.py || echo "passage en erreur"
+            git add etat/ || true
+            if ! git diff --cached --quiet; then
+              git commit -m "maj état veille" -q
+              git pull --rebase -q -X ours || git rebase --abort
+              git push -q || echo "push impossible, nouvel essai au prochain passage"
+            fi
+            reste=$(( 300 - ($(date +%s) - debut) ))
+            if [ $(( $(date +%s) + reste )) -ge "$fin" ]; then break; fi
+            if [ "$reste" -gt 0 ]; then sleep "$reste"; fi
+          done
